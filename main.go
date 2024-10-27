@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	solution "first/Solution"
+	"first/models"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -21,14 +24,10 @@ const FILE_DIR = "./vs-m"
 func main() {
 	tests := prepareFiles()
 
-	solutions := parallelRun(tests)
-	sort.Slice(solutions, func(i, j int) bool {
-		iID := solutions[i].id
-		jID := solutions[j].id
-		return slices.Compare(iID[:], jID[:]) < 0
-	})
+	solutions := parallelRun(tests, solution.GreedySolution)
 	for _, s := range solutions {
-		fmt.Printf("id: %v, name: %v, result: %v, time: %v\n", s.id, s.name, s.result, s.time)
+		fmt.Printf("id: %-2v name: %-58v result: %-5v time: %-10v IPsolVal: %-5v GreedyVal: %-5v\n",
+			s.id, s.name, s.cMax, s.time, s.IPsolVal, s.GreedyVal)
 	}
 }
 
@@ -37,10 +36,12 @@ type testFile struct {
 	output string
 }
 type testSolution struct {
-	id     [4]int
-	name   string
-	result int
-	time   int
+	id        [4]int
+	name      string
+	cMax      models.CMaxValue
+	time      time.Duration
+	IPsolVal  cMaxValue
+	GreedyVal cMaxValue
 }
 
 func (tf testFile) Equal() {
@@ -82,23 +83,6 @@ func prepareFiles() []testFile {
 	return fileTriples
 }
 
-type initialState struct {
-	workerNumber int
-	tasks        []task
-	setups       []setup
-}
-
-type task struct {
-	id     int
-	time   int
-	setups []*setup
-}
-type setup struct {
-	id    int
-	time  int
-	tasks []*task
-}
-
 func scanNonEmpty(scanner *bufio.Scanner) string {
 	for scanner.Scan() {
 		if len(scanner.Text()) > 0 {
@@ -109,7 +93,7 @@ func scanNonEmpty(scanner *bufio.Scanner) string {
 	return ""
 }
 
-func parseInput(in string) initialState {
+func parseInput(in string) models.InitialState {
 	f, err := os.Open(FILE_DIR + "/" + in)
 	if err != nil {
 		log.Panic(err)
@@ -133,22 +117,22 @@ func parseInput(in string) initialState {
 		log.Panic(err)
 	}
 
-	tasks := make([]task, 0, taskNumber)
+	tasks := make([]models.InitialTask, 0, taskNumber)
 	for i, v := range strings.Fields(scanNonEmpty(scanner)) {
 		val, err := strconv.Atoi(v)
 		if err != nil {
 			log.Panic(err)
 		}
-		tasks = append(tasks, task{i, val, nil})
+		tasks = append(tasks, models.InitialTask{i, val, nil})
 	}
 
-	setups := make([]setup, 0, setupNumber)
+	setups := make([]models.InitialSetup, 0, setupNumber)
 	for i, v := range strings.Fields(scanNonEmpty(scanner)) {
 		val, err := strconv.Atoi(v)
 		if err != nil {
 			log.Panic(err)
 		}
-		setups = append(setups, setup{i, val, nil})
+		setups = append(setups, models.InitialSetup{i, val, nil})
 	}
 
 	for taskID := range tasks {
@@ -159,14 +143,41 @@ func parseInput(in string) initialState {
 			if err != nil {
 				log.Panic(err)
 			}
-			task.setups = append(task.setups, setup)
-			setup.tasks = append(setup.tasks, task)
+			task.Setups = append(task.Setups, setup)
+			setup.Tasks = append(setup.Tasks, task)
 		}
 	}
-	return initialState{workerNumber, tasks, setups}
+	return models.InitialState{workerNumber, tasks, setups}
 }
 
-func parallelRun(tests []testFile) []testSolution {
+func parseOutput(out string) (cMaxValue, cMaxValue) {
+	f, err := os.Open(FILE_DIR + "/" + out)
+	if err != nil {
+		log.Panic(err)
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+
+	var ip1anchorStr, greedyStr string
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.Contains(line, "IP2position") {
+			parts := strings.Fields(line)
+			ip1anchorStr = parts[1]
+		}
+		if strings.Contains(line, "Greedy ") {
+			parts := strings.Fields(line)
+			greedyStr = parts[1]
+		}
+	}
+
+	ip1anchor, _ := strconv.Atoi(ip1anchorStr)
+	greedy, _ := strconv.Atoi(greedyStr)
+	return cMaxValue(ip1anchor), cMaxValue(greedy)
+}
+
+func parallelRun(tests []testFile, runTest func(models.InitialState) (models.CMaxValue, time.Duration)) []testSolution {
 	const numWorkers = 10
 	numJobs := len(tests)
 
@@ -183,12 +194,13 @@ func parallelRun(tests []testFile) []testSolution {
 			test  testFile
 		}).test
 		state := parseInput(test.input)
+		IPsolVal, GreedyVal := parseOutput(test.output)
 
-		result, time := runTest(state)
+		cMax, duration := runTest(state)
 		noSuffix, _ := strings.CutSuffix(test.input, ".in")
 		dashSplit := strings.Split(noSuffix, "-")
 		exampleNumber, _ := strconv.Atoi(dashSplit[len(dashSplit)-1])
-		results[index] = testSolution{id: [4]int{len(state.tasks), len(state.setups), state.workerNumber, exampleNumber}, name: test.input, result: result, time: time}
+		results[index] = testSolution{id: [4]int{len(state.Tasks), len(state.Setups), state.WorkerNumber, exampleNumber}, name: test.input, cMax: cMax, time: duration, IPsolVal: IPsolVal, GreedyVal: GreedyVal}
 	}, ants.WithPanicHandler(func(i interface{}) {
 		log.Printf("%v\n%s", i, debug.Stack())
 	}))
@@ -202,13 +214,89 @@ func parallelRun(tests []testFile) []testSolution {
 		}{index: i, test: t})
 	}
 	wg.Wait()
+	sort.Slice(results, func(i, j int) bool {
+		iID := results[i].id
+		jID := results[j].id
+		return slices.Compare(iID[:], jID[:]) < 0
+	})
 	return results
 }
 
-func runTest(state initialState) (int, int) {
+func testTest(state initialState) (cMaxValue, time.Duration) {
 	start := time.Now()
 	time.Sleep(50 * time.Millisecond)
 	value := state.workerNumber
 	elapsed := time.Since(start)
-	return value, int(elapsed.Milliseconds())
+	return cMaxValue(value), elapsed
+}
+
+type initialState struct {
+	workerNumber int
+	tasks        []initialTask
+	setups       []initialSetup
+}
+
+type initialTask struct {
+	id     int
+	time   int
+	setups []*initialSetup
+}
+type initialSetup struct {
+	id    int
+	time  int
+	tasks []*initialTask
+}
+
+type worker struct {
+	setups mapset.Set[int]
+	tasks  []*initialTask
+	cSum   int
+}
+
+func (w *worker) addTask(t *initialTask) {
+	w.tasks = append(w.tasks, t)
+	w.cSum += t.time
+	for _, s := range t.setups {
+		if !w.setups.ContainsOne(s.id) {
+			w.setups.Add(s.id)
+			w.cSum += s.time
+		}
+	}
+}
+
+type cMaxValue int
+
+func greedySolution(state initialState) (cMaxValue, time.Duration) {
+	start := time.Now()
+	workers := make([]worker, state.workerNumber)
+	for i := range workers {
+		workers[i].setups = mapset.NewSet[int]()
+	}
+	for t := range state.tasks {
+		task := &state.tasks[t]
+		sort.Slice(workers, func(i, j int) bool {
+			return workers[i].cSum < workers[j].cSum
+		})
+		minWorker := &workers[0]
+		minWorker.addTask(task)
+	}
+	sort.Slice(workers, func(i, j int) bool {
+		return workers[i].cSum > workers[j].cSum
+	})
+
+	value := workers[0].cSum
+
+	elapsed := time.Since(start)
+	return cMaxValue(value), elapsed
+}
+
+func popularitySolution(state initialState) (cMaxValue, time.Duration) {
+	start := time.Now()
+	workers := make([]worker, state.workerNumber)
+	for i := range workers {
+		workers[i].setups = mapset.NewSet[int]()
+	}
+
+	elapsed := time.Since(start)
+	return cMaxValue(1), elapsed
 }

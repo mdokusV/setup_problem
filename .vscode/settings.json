@@ -1,6 +1,7 @@
 {
     "editor.suggest.insertMode": "insert",
     "cSpell.words": [
+        "mapset",
         "Quantile",
         "vals"
     ],
