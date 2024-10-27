@@ -15,9 +15,10 @@ import (
 	"sync"
 	"time"
 
-	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/panjf2000/ants/v2"
 )
+
+type cMaxValue = models.CMaxValue
 
 const FILE_DIR = "./vs-m"
 
@@ -38,7 +39,7 @@ type testFile struct {
 type testSolution struct {
 	id        [4]int
 	name      string
-	cMax      models.CMaxValue
+	cMax      cMaxValue
 	time      time.Duration
 	IPsolVal  cMaxValue
 	GreedyVal cMaxValue
@@ -123,7 +124,7 @@ func parseInput(in string) models.InitialState {
 		if err != nil {
 			log.Panic(err)
 		}
-		tasks = append(tasks, models.InitialTask{i, val, nil})
+		tasks = append(tasks, models.InitialTask{ID: i, Time: val, Setups: nil})
 	}
 
 	setups := make([]models.InitialSetup, 0, setupNumber)
@@ -132,7 +133,7 @@ func parseInput(in string) models.InitialState {
 		if err != nil {
 			log.Panic(err)
 		}
-		setups = append(setups, models.InitialSetup{i, val, nil})
+		setups = append(setups, models.InitialSetup{ID: i, Time: val, Tasks: nil})
 	}
 
 	for taskID := range tasks {
@@ -147,7 +148,7 @@ func parseInput(in string) models.InitialState {
 			setup.Tasks = append(setup.Tasks, task)
 		}
 	}
-	return models.InitialState{workerNumber, tasks, setups}
+	return models.InitialState{WorkerNumber: workerNumber, Tasks: tasks, Setups: setups}
 }
 
 func parseOutput(out string) (cMaxValue, cMaxValue) {
@@ -220,83 +221,4 @@ func parallelRun(tests []testFile, runTest func(models.InitialState) (models.CMa
 		return slices.Compare(iID[:], jID[:]) < 0
 	})
 	return results
-}
-
-func testTest(state initialState) (cMaxValue, time.Duration) {
-	start := time.Now()
-	time.Sleep(50 * time.Millisecond)
-	value := state.workerNumber
-	elapsed := time.Since(start)
-	return cMaxValue(value), elapsed
-}
-
-type initialState struct {
-	workerNumber int
-	tasks        []initialTask
-	setups       []initialSetup
-}
-
-type initialTask struct {
-	id     int
-	time   int
-	setups []*initialSetup
-}
-type initialSetup struct {
-	id    int
-	time  int
-	tasks []*initialTask
-}
-
-type worker struct {
-	setups mapset.Set[int]
-	tasks  []*initialTask
-	cSum   int
-}
-
-func (w *worker) addTask(t *initialTask) {
-	w.tasks = append(w.tasks, t)
-	w.cSum += t.time
-	for _, s := range t.setups {
-		if !w.setups.ContainsOne(s.id) {
-			w.setups.Add(s.id)
-			w.cSum += s.time
-		}
-	}
-}
-
-type cMaxValue int
-
-func greedySolution(state initialState) (cMaxValue, time.Duration) {
-	start := time.Now()
-	workers := make([]worker, state.workerNumber)
-	for i := range workers {
-		workers[i].setups = mapset.NewSet[int]()
-	}
-	for t := range state.tasks {
-		task := &state.tasks[t]
-		sort.Slice(workers, func(i, j int) bool {
-			return workers[i].cSum < workers[j].cSum
-		})
-		minWorker := &workers[0]
-		minWorker.addTask(task)
-	}
-	sort.Slice(workers, func(i, j int) bool {
-		return workers[i].cSum > workers[j].cSum
-	})
-
-	value := workers[0].cSum
-
-	elapsed := time.Since(start)
-	return cMaxValue(value), elapsed
-}
-
-func popularitySolution(state initialState) (cMaxValue, time.Duration) {
-	start := time.Now()
-	workers := make([]worker, state.workerNumber)
-	for i := range workers {
-		workers[i].setups = mapset.NewSet[int]()
-	}
-
-	elapsed := time.Since(start)
-	return cMaxValue(1), elapsed
 }
