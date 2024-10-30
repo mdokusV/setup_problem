@@ -21,15 +21,13 @@ import (
 type cMaxValue = models.CMaxValue
 
 const FILE_DIR = "./vs-m"
+const numWorkers = 10
 
 func main() {
 	tests := prepareFiles()
 
 	solutions := parallelRun(tests, solution.GreedySolution)
-	for _, s := range solutions {
-		fmt.Printf("id: %-2v name: %-58v result: %-5v time: %-10v IPsolVal: %-5v GreedyVal: %-5v\n",
-			s.id, s.name, s.cMax, s.time, s.IPsolVal, s.GreedyVal)
-	}
+	showSummary(solutions)
 }
 
 type testFile struct {
@@ -178,8 +176,7 @@ func parseOutput(out string) (cMaxValue, cMaxValue) {
 	return cMaxValue(ip1anchor), cMaxValue(greedy)
 }
 
-func parallelRun(tests []testFile, runTest func(models.InitialState) (models.CMaxValue, time.Duration)) []testSolution {
-	const numWorkers = 10
+func parallelRun(tests []testFile, solutionFunc func(solution.State) models.CMaxValue) []testSolution {
 	numJobs := len(tests)
 
 	var wg sync.WaitGroup
@@ -197,7 +194,7 @@ func parallelRun(tests []testFile, runTest func(models.InitialState) (models.CMa
 		state := parseInput(test.input)
 		IPsolVal, GreedyVal := parseOutput(test.output)
 
-		cMax, duration := runTest(state)
+		cMax, duration := solution.RunSolution(state, solutionFunc)
 		noSuffix, _ := strings.CutSuffix(test.input, ".in")
 		dashSplit := strings.Split(noSuffix, "-")
 		exampleNumber, _ := strconv.Atoi(dashSplit[len(dashSplit)-1])
@@ -221,4 +218,11 @@ func parallelRun(tests []testFile, runTest func(models.InitialState) (models.CMa
 		return slices.Compare(iID[:], jID[:]) < 0
 	})
 	return results
+}
+
+func showSummary(results []testSolution) {
+	for _, r := range results {
+		fmt.Printf("id: %-2v name: %-58v result: %-5v time: %-10v IPsolVal: %-5v GreedyVal: %-5v\n",
+			r.id, r.name, r.cMax, r.time, r.IPsolVal, r.GreedyVal)
+	}
 }

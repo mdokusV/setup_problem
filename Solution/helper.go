@@ -2,13 +2,17 @@ package solution
 
 import (
 	"first/models"
+	"math"
+	"slices"
+	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
-func transformInitialState(initState models.InitialState) state {
+func transformInitialState(initState models.InitialState) State {
 	workers := make([]worker, initState.WorkerNumber)
 	for i := range workers {
+		workers[i].id = i
 		workers[i].setups = mapset.NewSet[int]()
 	}
 
@@ -38,9 +42,32 @@ func transformInitialState(initState models.InitialState) state {
 		}
 	}
 
-	return state{
-		workers: workers,
-		tasks:   tasks,
-		setups:  setups,
+	return State{workers, tasks, setups}
+}
+
+func alphaAverage[T int | float64](items []T, alpha float64) float64 {
+	if alpha == math.Inf(1) {
+		return float64(slices.Max(items))
 	}
+	if alpha == math.Inf(-1) {
+		return float64(slices.Min(items))
+	}
+
+	sum := 0.0
+	for _, v := range items {
+		sum += math.Pow(float64(v), alpha)
+	}
+	sum /= float64(len(items))
+	sum = math.Pow(sum, 1/alpha)
+	return sum
+}
+
+func RunSolution(initialState models.InitialState, solution func(State) (cMaxValue models.CMaxValue)) (models.CMaxValue, time.Duration) {
+	start := time.Now()
+	state := transformInitialState(initialState)
+
+	value := solution(state)
+
+	elapsed := time.Since(start)
+	return value, elapsed
 }
