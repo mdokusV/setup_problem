@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"runtime/debug"
+	"runtime/pprof"
 	"slices"
 	"sort"
 	"strconv"
@@ -21,13 +22,28 @@ import (
 type cMaxValue = models.CMaxValue
 
 const FILE_DIR = "./vs-m"
-const numWorkers = 10
+
+// const FILE_DIR = "./m5-vs-N"
+
+const numWorkers = 20
 
 func main() {
+	f, _ := os.Create("cpu.prof")
+	defer f.Close()
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
 	tests := prepareFiles()
 
-	solutions := parallelRun(tests, solution.GreedySolution)
+	solutions := parallelRun(tests, solution.GreedyWithSimpleSortedTasks)
 	showSummary(solutions)
+	saveSummary(solutions)
+
+	memFile, _ := os.Create("mem.prof")
+	defer memFile.Close()
+
+	pprof.WriteHeapProfile(memFile)
+
 }
 
 type testFile struct {
@@ -201,7 +217,7 @@ func parallelRun(tests []testFile, solutionFunc func(solution.State) models.CMax
 		results[index] = testSolution{id: [4]int{len(state.Tasks), len(state.Setups), state.WorkerNumber, exampleNumber}, name: test.input, cMax: cMax, time: duration, IPsolVal: IPsolVal, GreedyVal: GreedyVal}
 	}, ants.WithPanicHandler(func(i interface{}) {
 		log.Printf("%v\n%s", i, debug.Stack())
-	}))
+	}), ants.WithExpiryDuration(time.Minute))
 	defer pool.Release()
 
 	for i, t := range tests {
@@ -220,9 +236,26 @@ func parallelRun(tests []testFile, solutionFunc func(solution.State) models.CMax
 	return results
 }
 
+func saveSummary(results []testSolution) {
+	f, err := os.Create("summary.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	for _, r := range results {
+		resToIPos := float64(r.cMax) / float64(r.IPsolVal)
+		resToGreedy := float64(r.cMax) / float64(r.GreedyVal)
+		fmt.Fprintf(f, "id: %-2v  result: %-5v time: %-10v | IPsolVal: %-5v resToIPos: %-6.3f | GreedyVal: %-5v resToGreedy: %-6.3f \n",
+			r.id, r.cMax, r.time, r.IPsolVal, resToIPos, r.GreedyVal, resToGreedy)
+	}
+}
+
 func showSummary(results []testSolution) {
 	for _, r := range results {
-		fmt.Printf("id: %-2v name: %-58v result: %-5v time: %-10v IPsolVal: %-5v GreedyVal: %-5v\n",
-			r.id, r.name, r.cMax, r.time, r.IPsolVal, r.GreedyVal)
+		resToIPos := float64(r.cMax) / float64(r.IPsolVal)
+		resToGreedy := float64(r.cMax) / float64(r.GreedyVal)
+		fmt.Printf("id: %-2v  result: %-5v time: %-10v | IPsolVal: %-5v resToIPos: %-6.3f | GreedyVal: %-5v resToGreedy: %-6.3f \n",
+			r.id, r.cMax, r.time, r.IPsolVal, resToIPos, r.GreedyVal, resToGreedy)
 	}
 }

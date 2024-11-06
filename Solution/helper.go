@@ -63,11 +63,15 @@ func alphaAverage[T int | float64](items []T, alpha float64) float64 {
 }
 
 func RunSolution(initialState models.InitialState, solution func(State) (cMaxValue models.CMaxValue)) (models.CMaxValue, time.Duration) {
-	start := time.Now()
 	state := transformInitialState(initialState)
+	start := time.Now()
 
 	value := solution(state)
 
 	elapsed := time.Since(start)
+
+
+	state.checkSolution()
+
 	return value, elapsed
 }

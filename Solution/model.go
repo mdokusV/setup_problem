@@ -8,6 +8,48 @@ type State struct {
 	setups  []setup
 }
 
+func (state *State) checkSolution() {
+	workers := state.workers
+	tasks := state.tasks
+	setups := state.setups
+	// all tasks used by workers
+	usedTasks := make(map[int]bool, len(workers))
+	usedTasksNum := 0
+	for _, w := range workers {
+		for _, t := range w.tasks {
+			if usedTasks[t.id] {
+				panic("task already used")
+			}
+
+			//all setups assigned
+			for _, s := range t.setups {
+				if !w.setups.ContainsOne(s.id) {
+					panic("missing setup")
+				}
+			}
+
+			usedTasksNum++
+			usedTasks[t.id] = true
+		}
+
+		// correct cSum
+		sum := 0
+		for _, t := range w.tasks {
+			sum += t.time
+		}
+		for _, s := range w.setups.ToSlice() {
+			sum += setups[s].time
+		}
+		if sum != w.cSum {
+			panic("wrong cSum")
+		}
+	}
+
+	if usedTasksNum != len(tasks) {
+		panic("not all tasks used")
+	}
+}
+
 type worker struct {
 	id         int
 	setups     mapset.Set[int]
@@ -29,16 +71,19 @@ func (w *worker) addTaskWithPredict(t *task) {
 	}
 }
 
-func (w *worker) testTask(t *task) int {
+func (w *worker) testTask(t *task) (int, int) {
 	sum := w.cSum
 	sum += t.time
 
+	added := t.time
+
 	for _, s := range t.setups {
 		if !w.setups.ContainsOne(s.id) {
+			added += s.time
 			sum += s.time
 		}
 	}
-	return sum
+	return sum, added
 
 }
 
@@ -56,8 +101,16 @@ func (w *worker) addTask(t *task) {
 type task struct {
 	id              int
 	time            int
+	timeWithSetup   int
 	setupPopularity float64
 	setups          []*setup
+}
+
+func (t *task) sumTimeWithSetups() {
+	t.timeWithSetup = t.time
+	for _, s := range t.setups {
+		t.timeWithSetup += s.time
+	}
 }
 
 func (t *task) alphaAverageSetups(alpha float64) {
