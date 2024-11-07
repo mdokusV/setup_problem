@@ -21,8 +21,8 @@ func GreedyWithSimpleSortedTasks(state State) models.CMaxValue {
 
 	for t := range tasks {
 		task := &tasks[t]
-		minWorkerID := minimumHeuristicWorker(workers, task)
-		workers[minWorkerID].addTask(task)
+		minWorker := minimumHeuristicWorker(workers, task)
+		minWorker.addTask(*task)
 	}
 	slices.SortFunc(workers, func(i, j worker) int {
 		return cmp.Compare(j.cSum, i.cSum)

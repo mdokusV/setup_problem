@@ -1,6 +1,8 @@
 {
     "editor.suggest.insertMode": "insert",
     "cSpell.words": [
+        "Alloc",
+        "deckarep",
         "mapset",
         "panjf",
         "Quantile",

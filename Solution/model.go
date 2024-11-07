@@ -11,7 +11,6 @@ type State struct {
 func (state *State) checkSolution() {
 	workers := state.workers
 	tasks := state.tasks
-	setups := state.setups
 	// all tasks used by workers
 	usedTasks := make(map[int]bool, len(workers))
 	usedTasksNum := 0
@@ -23,7 +22,7 @@ func (state *State) checkSolution() {
 
 			//all setups assigned
 			for _, s := range t.setups {
-				if !w.setups.ContainsOne(s.id) {
+				if !w.setups.ContainsOne(s) {
 					panic("missing setup")
 				}
 			}
@@ -38,7 +37,7 @@ func (state *State) checkSolution() {
 			sum += t.time
 		}
 		for _, s := range w.setups.ToSlice() {
-			sum += setups[s].time
+			sum += s.time
 		}
 		if sum != w.cSum {
 			panic("wrong cSum")
@@ -52,19 +51,19 @@ func (state *State) checkSolution() {
 
 type worker struct {
 	id         int
-	setups     mapset.Set[int]
-	tasks      []*task
+	setups     mapset.Set[*setup]
+	tasks      []task
 	predictSum float64
 	cSum       int
 }
 
-func (w *worker) addTaskWithPredict(t *task) {
+func (w *worker) addTaskWithPredict(t task) {
 	w.tasks = append(w.tasks, t)
 	w.cSum += t.time
 	w.predictSum += t.setupPopularity + float64(t.time)
 	for _, s := range t.setups {
-		if !w.setups.ContainsOne(s.id) {
-			w.setups.Add(s.id)
+		if !w.setups.ContainsOne(s) {
+			w.setups.Add(s)
 			w.cSum += s.time
 			w.predictSum += float64(s.time)
 		}
@@ -78,7 +77,7 @@ func (w *worker) testTask(t *task) (int, int) {
 	added := t.time
 
 	for _, s := range t.setups {
-		if !w.setups.ContainsOne(s.id) {
+		if !w.setups.ContainsOne(s) {
 			added += s.time
 			sum += s.time
 		}
@@ -87,12 +86,11 @@ func (w *worker) testTask(t *task) (int, int) {
 
 }
 
-func (w *worker) addTask(t *task) {
+func (w *worker) addTask(t task) {
 	w.tasks = append(w.tasks, t)
 	w.cSum += t.time
 	for _, s := range t.setups {
-		if !w.setups.ContainsOne(s.id) {
-			w.setups.Add(s.id)
+		if w.setups.Add(s) {
 			w.cSum += s.time
 		}
 	}
@@ -104,6 +102,7 @@ type task struct {
 	timeWithSetup   int
 	setupPopularity float64
 	setups          []*setup
+	setupsSet       mapset.Set[*setup]
 }
 
 func (t *task) sumTimeWithSetups() {
@@ -126,7 +125,7 @@ type setup struct {
 	id          int
 	time        int
 	taskAverage float64
-	tasks       []*task
+	tasks       []task
 }
 
 func (s *setup) alphaAverageTasks(alpha float64) {

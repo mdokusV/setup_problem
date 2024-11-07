@@ -13,7 +13,7 @@ func transformInitialState(initState models.InitialState) State {
 	workers := make([]worker, initState.WorkerNumber)
 	for i := range workers {
 		workers[i].id = i
-		workers[i].setups = mapset.NewSet[int]()
+		workers[i].setups = mapset.NewSet[*setup]()
 	}
 
 	// generate tasks
@@ -25,13 +25,13 @@ func transformInitialState(initState models.InitialState) State {
 
 	// generate setups
 	for i, s := range initState.Setups {
-		setups[i] = setup{id: s.ID, time: s.Time, tasks: make([]*task, len(s.Tasks))}
+		setups[i] = setup{id: s.ID, time: s.Time, tasks: make([]task, len(s.Tasks))}
 	}
 
 	//populate tasks
 	for _, s := range initState.Setups {
 		for j, t := range s.Tasks {
-			setups[s.ID].tasks[j] = &tasks[t.ID]
+			setups[s.ID].tasks[j] = tasks[t.ID]
 		}
 	}
 
@@ -40,6 +40,8 @@ func transformInitialState(initState models.InitialState) State {
 		for j, s := range t.Setups {
 			tasks[t.ID].setups[j] = &setups[s.ID]
 		}
+		tasks[t.ID].setupsSet = mapset.NewSet[*setup](tasks[t.ID].setups...)
+
 	}
 
 	return State{workers, tasks, setups}
@@ -70,8 +72,27 @@ func RunSolution(initialState models.InitialState, solution func(State) (cMaxVal
 
 	elapsed := time.Since(start)
 
-
 	state.checkSolution()
 
 	return value, elapsed
+}
+
+func findBestMatch[S ~[]E, E any](x S, cmp func(a, b E) int) (*E, int) {
+	if len(x) < 1 {
+		panic("slices.MinFunc: empty list")
+	}
+	m := &x[0]
+	ind := 0
+	for i := 1; i < len(x); i++ {
+		if cmp(x[i], *m) < 0 {
+			m = &x[i]
+			ind = i
+		}
+	}
+	return m, ind
+}
+
+func removeNoOrder[T any](s []T, i int) []T {
+	s[i], s[len(s)-1] = s[len(s)-1], s[i]
+	return s[:len(s)-1]
 }

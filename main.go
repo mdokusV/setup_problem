@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime/debug"
-	"runtime/pprof"
 	"slices"
 	"sort"
 	"strconv"
@@ -21,29 +19,18 @@ import (
 
 type cMaxValue = models.CMaxValue
 
-const FILE_DIR = "./vs-m"
+// const FILE_DIR = "./vs-m"
 
-// const FILE_DIR = "./m5-vs-N"
+const FILE_DIR = "./m5-vs-N"
 
-const numWorkers = 20
+const numWorkers = 10
 
 func main() {
-	f, _ := os.Create("cpu.prof")
-	defer f.Close()
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
-
 	tests := prepareFiles()
 
-	solutions := parallelRun(tests, solution.GreedyWithSimpleSortedTasks)
+	solutions := parallelRun(tests, solution.GreedyWithAdvancedSortedTasks)
 	showSummary(solutions)
 	saveSummary(solutions)
-
-	memFile, _ := os.Create("mem.prof")
-	defer memFile.Close()
-
-	pprof.WriteHeapProfile(memFile)
-
 }
 
 type testFile struct {
@@ -216,8 +203,8 @@ func parallelRun(tests []testFile, solutionFunc func(solution.State) models.CMax
 		exampleNumber, _ := strconv.Atoi(dashSplit[len(dashSplit)-1])
 		results[index] = testSolution{id: [4]int{len(state.Tasks), len(state.Setups), state.WorkerNumber, exampleNumber}, name: test.input, cMax: cMax, time: duration, IPsolVal: IPsolVal, GreedyVal: GreedyVal}
 	}, ants.WithPanicHandler(func(i interface{}) {
-		log.Printf("%v\n%s", i, debug.Stack())
-	}), ants.WithExpiryDuration(time.Minute))
+		log.Printf("caught panic: %v", i)
+	}), ants.WithExpiryDuration(time.Minute), ants.WithPreAlloc(true))
 	defer pool.Release()
 
 	for i, t := range tests {

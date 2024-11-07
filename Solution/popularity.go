@@ -30,7 +30,7 @@ func PopularitySolution(state State) models.CMaxValue {
 			return workers[i].predictSum < workers[j].predictSum
 		})
 		minWorker := &workers[0]
-		minWorker.addTaskWithPredict(task)
+		minWorker.addTaskWithPredict(*task)
 	}
 	sort.Slice(workers, func(i, j int) bool {
 		return workers[i].cSum > workers[j].cSum
