@@ -6,7 +6,9 @@ import (
 	"first/models"
 	"fmt"
 	"log"
+	"math"
 	"os"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -23,14 +25,32 @@ type cMaxValue = models.CMaxValue
 
 const FILE_DIR = "./m5-vs-N"
 
-const numWorkers = 10
+const NUM_WORKERS = 5
 
 func main() {
+
 	tests := prepareFiles()
 
-	solutions := parallelRun(tests, solution.GreedyWithAdvancedSortedTasks)
+	solutions := parallelRun(tests, solution.GreedyGAinitStateSolution)
 	showSummary(solutions)
 	saveSummary(solutions)
+	showStatistics(solutions)
+}
+
+func showStatistics(results []testSolution) {
+	sum, min, max := 0.0, math.Inf(1), 0.0
+	for _, r := range results {
+		resToGreedy := float64(r.cMax) / float64(r.GreedyVal)
+		sum += resToGreedy
+		if resToGreedy > max {
+			max = resToGreedy
+		}
+		if resToGreedy < min {
+			min = resToGreedy
+		}
+	}
+
+	fmt.Printf("avg: %-5v min: %-5v max: %-5v \n", sum/float64(len(results)), min, max)
 }
 
 type testFile struct {
@@ -179,13 +199,15 @@ func parseOutput(out string) (cMaxValue, cMaxValue) {
 	return cMaxValue(ip1anchor), cMaxValue(greedy)
 }
 
-func parallelRun(tests []testFile, solutionFunc func(solution.State) models.CMaxValue) []testSolution {
+func parallelRun(tests []testFile, solutionFunc func(solution.State) (models.CMaxValue, solution.State)) []testSolution {
 	numJobs := len(tests)
 
 	var wg sync.WaitGroup
 	results := make([]testSolution, numJobs)
 
-	pool, _ := ants.NewPoolWithFunc(numWorkers, func(i interface{}) {
+	runtime.GC()
+
+	pool, err := ants.NewPoolWithFunc(NUM_WORKERS, func(i interface{}) {
 		defer wg.Done()
 		index, test := i.(struct {
 			index int
@@ -197,7 +219,7 @@ func parallelRun(tests []testFile, solutionFunc func(solution.State) models.CMax
 		state := parseInput(test.input)
 		IPsolVal, GreedyVal := parseOutput(test.output)
 
-		cMax, duration := solution.RunSolution(state, solutionFunc)
+		cMax, duration, _ := solution.RunSolution(state, solutionFunc)
 		noSuffix, _ := strings.CutSuffix(test.input, ".in")
 		dashSplit := strings.Split(noSuffix, "-")
 		exampleNumber, _ := strconv.Atoi(dashSplit[len(dashSplit)-1])
@@ -207,6 +229,9 @@ func parallelRun(tests []testFile, solutionFunc func(solution.State) models.CMax
 	}), ants.WithExpiryDuration(time.Minute), ants.WithPreAlloc(true))
 	defer pool.Release()
 
+	if err != nil {
+		log.Fatal(err)
+	}
 	for i, t := range tests {
 		wg.Add(1)
 		_ = pool.Invoke(struct {
@@ -233,7 +258,7 @@ func saveSummary(results []testSolution) {
 	for _, r := range results {
 		resToIPos := float64(r.cMax) / float64(r.IPsolVal)
 		resToGreedy := float64(r.cMax) / float64(r.GreedyVal)
-		fmt.Fprintf(f, "id: %-2v  result: %-5v time: %-10v | IPsolVal: %-5v resToIPos: %-6.3f | GreedyVal: %-5v resToGreedy: %-6.3f \n",
+		fmt.Fprintf(f, "id: %-2v  result: %-5v time: %-13v | IPsolVal: %-5v resToIPos: %-6.3f | GreedyVal: %-5v resToGreedy: %-6.3f \n",
 			r.id, r.cMax, r.time, r.IPsolVal, resToIPos, r.GreedyVal, resToGreedy)
 	}
 }
@@ -242,7 +267,7 @@ func showSummary(results []testSolution) {
 	for _, r := range results {
 		resToIPos := float64(r.cMax) / float64(r.IPsolVal)
 		resToGreedy := float64(r.cMax) / float64(r.GreedyVal)
-		fmt.Printf("id: %-2v  result: %-5v time: %-10v | IPsolVal: %-5v resToIPos: %-6.3f | GreedyVal: %-5v resToGreedy: %-6.3f \n",
+		fmt.Printf("id: %-2v  result: %-5v time: %-13v | IPsolVal: %-5v resToIPos: %-6.3f | GreedyVal: %-5v resToGreedy: %-6.3f \n",
 			r.id, r.cMax, r.time, r.IPsolVal, resToIPos, r.GreedyVal, resToGreedy)
 	}
 }

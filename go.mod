@@ -7,4 +7,7 @@ require (
 	github.com/panjf2000/ants/v2 v2.10.0
 )
 
-require golang.org/x/sync v0.8.0 // indirect
+require (
+	github.com/MaxHalford/eaopt v0.4.2 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+)

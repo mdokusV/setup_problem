@@ -7,7 +7,7 @@ import (
 	"sort"
 )
 
-func GreedySolution(state State) models.CMaxValue {
+func GreedySolution(state State) (models.CMaxValue, State) {
 	tasks := state.tasks
 	workers := state.workers
 
@@ -20,12 +20,11 @@ func GreedySolution(state State) models.CMaxValue {
 		minWorkerID := minimumHeuristicWorker(workers, task)
 		minWorkerID.addTask(*task)
 	}
-	slices.SortFunc(workers, func(i, j worker) int {
-		return cmp.Compare(j.cSum, i.cSum)
+	max := slices.MaxFunc(workers, func(i, j worker) int {
+		return cmp.Compare(i.cSum, j.cSum)
 	})
 
-	value := workers[0].cSum
-	return models.CMaxValue(value)
+	return models.CMaxValue(max.cSum), state
 }
 
 func minimumHeuristicWorker(workers []worker, task *task) *worker {

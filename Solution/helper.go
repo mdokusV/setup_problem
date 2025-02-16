@@ -3,13 +3,28 @@ package solution
 import (
 	"first/models"
 	"math"
+	"math/rand"
 	"slices"
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
-func transformInitialState(initState models.InitialState) State {
+func randomInts(k uint, min, max int, rng *rand.Rand) []int {
+	var ints = make([]int, k)
+	for i := 0; i < int(k); i++ {
+		ints[i] = i + min
+	}
+	for i := int(k); i < max-min; i++ {
+		var j = rng.Intn(i + 1)
+		if j < int(k) {
+			ints[j] = i + min
+		}
+	}
+	return ints
+}
+
+func prepareStartState(initState models.InitialState) State {
 	workers := make([]worker, initState.WorkerNumber)
 	for i := range workers {
 		workers[i].id = i
@@ -25,13 +40,13 @@ func transformInitialState(initState models.InitialState) State {
 
 	// generate setups
 	for i, s := range initState.Setups {
-		setups[i] = setup{id: s.ID, time: s.Time, tasks: make([]task, len(s.Tasks))}
+		setups[i] = setup{id: s.ID, time: s.Time, tasks: make([]*task, len(s.Tasks))}
 	}
 
 	//populate tasks
 	for _, s := range initState.Setups {
 		for j, t := range s.Tasks {
-			setups[s.ID].tasks[j] = tasks[t.ID]
+			setups[s.ID].tasks[j] = &tasks[t.ID]
 		}
 	}
 
@@ -64,17 +79,17 @@ func alphaAverage[T int | float64](items []T, alpha float64) float64 {
 	return sum
 }
 
-func RunSolution(initialState models.InitialState, solution func(State) (cMaxValue models.CMaxValue)) (models.CMaxValue, time.Duration) {
-	state := transformInitialState(initialState)
+func RunSolution(initialState models.InitialState, solution func(State) (models.CMaxValue, State)) (models.CMaxValue, time.Duration, State) {
+	state := prepareStartState(initialState)
 	start := time.Now()
 
-	value := solution(state)
+	value, bestSolution := solution(state)
 
 	elapsed := time.Since(start)
 
-	state.checkSolution()
+	bestSolution.checkSolution()
 
-	return value, elapsed
+	return value, elapsed, bestSolution
 }
 
 func findBestMatch[S ~[]E, E any](x S, cmp func(a, b E) int) (*E, int) {
