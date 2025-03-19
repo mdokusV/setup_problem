@@ -55,7 +55,7 @@ func prepareStartState(initState models.InitialState) State {
 		for j, s := range t.Setups {
 			tasks[t.ID].setups[j] = &setups[s.ID]
 		}
-		tasks[t.ID].setupsSet = mapset.NewSet[*setup](tasks[t.ID].setups...)
+		tasks[t.ID].setupsSet = mapset.NewSet(tasks[t.ID].setups...)
 
 	}
 
@@ -87,7 +87,7 @@ func RunSolution(initialState models.InitialState, solution func(State) (models.
 
 	elapsed := time.Since(start)
 
-	bestSolution.checkSolution()
+	bestSolution.CheckSolution(int(value))
 
 	return value, elapsed, bestSolution
 }

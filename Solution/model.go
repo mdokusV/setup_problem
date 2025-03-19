@@ -28,7 +28,7 @@ func (state State) IsCorrect() {
 	}
 }
 
-func (state *State) checkSolution() {
+func (state *State) CheckSolution(cMax int) {
 	workers := state.workers
 	tasks := state.tasks
 	// all tasks used by workers
@@ -62,6 +62,13 @@ func (state *State) checkSolution() {
 		if sum != w.cSum {
 			panic("wrong cSum")
 		}
+	}
+	max := slices.MaxFunc(workers, func(i, j worker) int {
+		return cmp.Compare(i.cSum, j.cSum)
+	})
+
+	if max.cSum != cMax {
+		panic("wrong cMax")
 	}
 
 	if usedTasksNum != len(tasks) {
