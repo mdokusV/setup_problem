@@ -4,16 +4,11 @@ import (
 	"cmp"
 	"first/models"
 	"slices"
-	"sort"
 )
 
 func GreedySolution(state State) (models.CMaxValue, State) {
 	tasks := state.tasks
 	workers := state.workers
-
-	sort.Slice(tasks, func(i, j int) bool {
-		return tasks[i].time > tasks[j].time
-	})
 
 	for t := range tasks {
 		task := &tasks[t]

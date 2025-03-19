@@ -12,8 +12,8 @@ import (
 func GreedyGAinitStateSolution(state State) (models.CMaxValue, State) {
 	ga, err := eaopt.NewDefaultGAConfig().NewGA()
 	ga.PopSize = 40
-	ga.NGenerations = 100
-	ga.NPops = 4
+	ga.NGenerations = 40
+	ga.NPops = 2
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,13 +83,9 @@ func (p taskGA) Copy() eaopt.Slice {
 
 func (s stateGA) Evaluate() (mismatches float64, err error) {
 	s.clear()
-	tasksOrder := make([]task, len(s.tasks))
-	copy(tasksOrder, s.tasks)
 	eval, state := GreedySolution(State(s))
-	state.checkSolution()
+	state.CheckSolution(int(eval))
 
-	// revert ordering
-	copy(s.tasks, tasksOrder)
 	return float64(eval), nil
 }
 
