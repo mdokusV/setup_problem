@@ -25,10 +25,11 @@ type cMaxValue = models.CMaxValue
 
 const FILE_DIR = "./m5-vs-N"
 
-const NUM_WORKERS = 5
+// var NUM_WORKERS = 1
+
+var NUM_WORKERS = runtime.NumCPU()
 
 func main() {
-
 	tests := prepareFiles()
 
 	solutions := parallelRun(tests, solution.GreedyGAinitStateSolution)
@@ -219,11 +220,16 @@ func parallelRun(tests []testFile, solutionFunc func(solution.State) (models.CMa
 		state := parseInput(test.input)
 		IPsolVal, GreedyVal := parseOutput(test.output)
 
-		cMax, duration, _ := solution.RunSolution(state, solutionFunc)
 		noSuffix, _ := strings.CutSuffix(test.input, ".in")
 		dashSplit := strings.Split(noSuffix, "-")
 		exampleNumber, _ := strconv.Atoi(dashSplit[len(dashSplit)-1])
-		results[index] = testSolution{id: [4]int{len(state.Tasks), len(state.Setups), state.WorkerNumber, exampleNumber}, name: test.input, cMax: cMax, time: duration, IPsolVal: IPsolVal, GreedyVal: GreedyVal}
+		id := [4]int{len(state.Tasks), len(state.Setups), state.WorkerNumber, exampleNumber}
+
+		cMax, duration, _ := solution.RunSolution(state, solutionFunc)
+		results[index] = testSolution{id: id, name: test.input, cMax: cMax, time: duration, IPsolVal: IPsolVal, GreedyVal: GreedyVal}
+		// fmt.Println(id)
+		// bestState.Print()
+		// fmt.Println("____________________________")
 	}, ants.WithPanicHandler(func(i interface{}) {
 		log.Printf("caught panic: %v", i)
 	}), ants.WithExpiryDuration(time.Minute), ants.WithPreAlloc(true))
